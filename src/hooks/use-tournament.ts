@@ -1,65 +1,99 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  loadOrgSession,
-  loadSelfPlayerId,
-  saveOrgSession,
-  saveSelfPlayerId,
-  verifyOrgPin,
-} from "@/lib/tournament/org";
-import { generateSwissRound } from "@/lib/tournament/pairing";
-import { normalizePlayerFields } from "@/lib/tournament/player-fields";
-import {
-  computeStandings,
-  hasIncompleteResults,
-  lastRound,
-} from "@/lib/tournament/standings";
-import {
-  clearTournament,
-  loadTournament,
-  saveTournament,
-} from "@/lib/tournament/storage";
+  clearPlayerSession,
+  createPlayer,
+  createRound,
+  deleteLastRound,
+  fetchEvent,
+  loadCachedSelfId,
+  orgLogin,
+  orgLogout,
+  patchPlayer,
+  patchStatus,
+  putPodResult,
+  removePlayer,
+  resetEvent,
+  savePlayerSession,
+} from "@/lib/client-api";
 import {
   emptyTournament,
-  newId,
   type EventStatus,
   type PlayerInput,
   type PodResult,
+  type StandingRow,
   type TournamentState,
 } from "@/lib/tournament/types";
 
 export function useTournament() {
   const [state, setState] = useState<TournamentState>(emptyTournament);
+  const [standings, setStandings] = useState<StandingRow[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [isOrganizer, setIsOrganizer] = useState(false);
   const [selfPlayerId, setSelfPlayerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const apply = useCallback(
+    (payload: {
+      state: TournamentState;
+      standings: StandingRow[];
+      isOrganizer?: boolean;
+      selfPlayerId?: string | null;
+      warning?: string | null;
+    }) => {
+      setState(payload.state);
+      setStandings(payload.standings);
+      if (payload.isOrganizer !== undefined) setIsOrganizer(payload.isOrganizer);
+      if (payload.selfPlayerId !== undefined) {
+        setSelfPlayerId(payload.selfPlayerId);
+      }
+      if (payload.warning !== undefined) setWarning(payload.warning);
+    },
+    [],
+  );
+
+  const refresh = useCallback(async () => {
+    const data = await fetchEvent();
+    apply({
+      state: data.state,
+      standings: data.standings,
+      isOrganizer: data.isOrganizer,
+      selfPlayerId: data.selfPlayerId ?? loadCachedSelfId(),
+    });
+    return data;
+  }, [apply]);
 
   useEffect(() => {
-    setState(loadTournament());
-    setIsOrganizer(loadOrgSession());
-    setSelfPlayerId(loadSelfPlayerId());
-    setHydrated(true);
-  }, []);
+    let cancelled = false;
+    (async () => {
+      try {
+        await refresh();
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Falha ao carregar.");
+        }
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
+    })();
+    const id = window.setInterval(() => {
+      refresh().catch(() => undefined);
+    }, 8000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [refresh]);
 
-  useEffect(() => {
-    if (!hydrated) return;
-    saveTournament(state);
-  }, [state, hydrated]);
-
-  const standings = useMemo(() => computeStandings(state), [state]);
   const eventStatus = state.eventStatus;
   const inscriptionsOpen = eventStatus === "inscricoes_abertas";
   const isLocked = eventStatus === "lock";
   const isClosed = eventStatus === "encerrado";
 
-  const canManageEvent = isOrganizer;
-  const canPair = isOrganizer && isLocked;
-  const canReport = isOrganizer && isLocked;
-  const canAddPlayer =
-    isOrganizer || (inscriptionsOpen && !selfPlayerId);
+  const canAddPlayer = isOrganizer || (inscriptionsOpen && !selfPlayerId);
   const canEditPlayer = useCallback(
     (playerId: string) => {
       if (isOrganizer) return true;
@@ -70,251 +104,200 @@ export function useTournament() {
   );
   const canRemovePlayer = useCallback(
     (playerId: string) => {
-      if (isOrganizer) {
-        return state.rounds.length === 0 && inscriptionsOpen;
-      }
-      return (
-        inscriptionsOpen &&
-        selfPlayerId === playerId &&
-        state.rounds.length === 0
-      );
+      if (state.rounds.length > 0) return false;
+      if (!inscriptionsOpen && !isOrganizer) return false;
+      if (isOrganizer) return true;
+      return selfPlayerId === playerId;
     },
     [inscriptionsOpen, isOrganizer, selfPlayerId, state.rounds.length],
   );
 
-  const update = useCallback((fn: (prev: TournamentState) => TournamentState) => {
-    setError(null);
-    setState((prev) => fn(prev));
-  }, []);
-
-  const enterOrganizer = useCallback((pin: string) => {
-    if (!verifyOrgPin(pin)) {
-      setError("PIN de organizador incorreto.");
-      return false;
-    }
-    saveOrgSession(true);
-    setIsOrganizer(true);
-    setError(null);
-    return true;
-  }, []);
-
-  const leaveOrganizer = useCallback(() => {
-    saveOrgSession(false);
-    setIsOrganizer(false);
-  }, []);
-
-  const setEventStatus = useCallback(
-    (status: EventStatus) => {
-      if (!isOrganizer) {
-        setError("Só a organizadora pode mudar o estado do evento.");
+  const enterOrganizer = useCallback(
+    async (pin: string) => {
+      setError(null);
+      setLoading(true);
+      try {
+        await orgLogin(pin);
+        await refresh();
+        return true;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "PIN incorreto.");
         return false;
+      } finally {
+        setLoading(false);
       }
-      if (status === "inscricoes_abertas" && state.rounds.length > 0) {
-        setError(
-          "Há rodadas registradas. Remova as rodadas antes de reabrir as inscrições, ou zere o torneio.",
-        );
-        return false;
-      }
-      update((prev) => ({ ...prev, eventStatus: status }));
-      return true;
     },
-    [isOrganizer, state.rounds.length, update],
+    [refresh],
   );
 
-  const claimSelf = useCallback((id: string) => {
-    saveSelfPlayerId(id);
-    setSelfPlayerId(id);
-  }, []);
+  const leaveOrganizer = useCallback(async () => {
+    setError(null);
+    try {
+      await orgLogout();
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Falha ao sair.");
+    }
+  }, [refresh]);
+
+  const setEventStatus = useCallback(
+    async (status: EventStatus) => {
+      setError(null);
+      setLoading(true);
+      try {
+        const data = await patchStatus(status);
+        apply({ state: data.state, standings: data.standings });
+        return true;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Falha ao mudar status.");
+        return false;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [apply],
+  );
 
   const addPlayer = useCallback(
-    (input: PlayerInput) => {
-      if (!canAddPlayer) {
-        setError(
-          isOrganizer
-            ? "Não é possível adicionar jogadores neste estado."
-            : selfPlayerId
-              ? "Este aparelho já tem uma ficha. Edite a sua ou peça à organizadora."
-              : "Inscrições fechadas.",
-        );
+    async (input: PlayerInput) => {
+      setError(null);
+      setLoading(true);
+      try {
+        const data = await createPlayer(input);
+        if (data.playerToken && data.playerId) {
+          savePlayerSession(data.playerId, data.playerToken);
+          setSelfPlayerId(data.playerId);
+        }
+        apply({
+          state: data.state,
+          standings: data.standings,
+          selfPlayerId: data.playerId ?? null,
+        });
+        return true;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Falha ao inscrever.");
         return false;
+      } finally {
+        setLoading(false);
       }
-      const normalized = normalizePlayerFields(input);
-      if (!normalized.ok) {
-        setError(normalized.error);
-        return false;
-      }
-      if (
-        state.players.some(
-          (p) =>
-            p.name.toLocaleLowerCase("pt-BR") ===
-            normalized.fields.name.toLocaleLowerCase("pt-BR"),
-        )
-      ) {
-        setError("Já existe um jogador com esse nome.");
-        return false;
-      }
-      const id = newId();
-      update((prev) => ({
-        ...prev,
-        players: [...prev.players, { id, ...normalized.fields }],
-      }));
-      if (!isOrganizer) claimSelf(id);
-      return true;
     },
-    [
-      canAddPlayer,
-      claimSelf,
-      isOrganizer,
-      selfPlayerId,
-      state.players,
-      update,
-    ],
+    [apply],
   );
 
   const updatePlayer = useCallback(
-    (id: string, input: PlayerInput) => {
-      if (!canEditPlayer(id)) {
-        setError(
-          eventStatus === "inscricoes_abertas"
-            ? "Só dá para editar a própria ficha neste aparelho."
-            : "Inscrições trancadas — só a organizadora altera fichas.",
-        );
+    async (id: string, input: PlayerInput) => {
+      setError(null);
+      setLoading(true);
+      try {
+        const data = await patchPlayer(id, input);
+        apply({ state: data.state, standings: data.standings });
+        return true;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Falha ao editar.");
         return false;
+      } finally {
+        setLoading(false);
       }
-      const normalized = normalizePlayerFields(input);
-      if (!normalized.ok) {
-        setError(normalized.error);
-        return false;
-      }
-      if (
-        state.players.some(
-          (p) =>
-            p.id !== id &&
-            p.name.toLocaleLowerCase("pt-BR") ===
-              normalized.fields.name.toLocaleLowerCase("pt-BR"),
-        )
-      ) {
-        setError("Já existe um jogador com esse nome.");
-        return false;
-      }
-      update((prev) => ({
-        ...prev,
-        players: prev.players.map((p) =>
-          p.id === id ? { id, ...normalized.fields } : p,
-        ),
-      }));
-      return true;
     },
-    [canEditPlayer, eventStatus, state.players, update],
+    [apply],
   );
 
-  const removePlayer = useCallback(
-    (id: string) => {
-      if (!canRemovePlayer(id)) {
-        setError(
-          "Não dá para remover este jogador agora (lock, rodadas ou não é a sua ficha).",
-        );
+  const removePlayerFn = useCallback(
+    async (id: string) => {
+      setError(null);
+      setLoading(true);
+      try {
+        const data = await removePlayer(id);
+        if (selfPlayerId === id) {
+          clearPlayerSession();
+          setSelfPlayerId(null);
+        }
+        apply({
+          state: data.state,
+          standings: data.standings,
+          selfPlayerId: selfPlayerId === id ? null : selfPlayerId,
+        });
+        return true;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Falha ao remover.");
         return false;
+      } finally {
+        setLoading(false);
       }
-      update((prev) => ({
-        ...prev,
-        players: prev.players.filter((p) => p.id !== id),
-      }));
-      if (selfPlayerId === id) {
-        saveSelfPlayerId(null);
-        setSelfPlayerId(null);
-      }
-      return true;
     },
-    [canRemovePlayer, selfPlayerId, update],
+    [apply, selfPlayerId],
   );
 
-  const generateRound = useCallback(() => {
-    setWarning(null);
-    if (!canPair) {
-      setError(
-        isOrganizer
-          ? "Gere mesas só com o evento em lock (torneio rolando)."
-          : "Só a organizadora gera rodadas (modo organizador + lock).",
-      );
-      return;
-    }
-    const last = lastRound(state);
-    if (last && hasIncompleteResults(last)) {
-      setError(
-        "Finalize os resultados da rodada atual antes de gerar a próxima.",
-      );
-      return;
-    }
+  const generateRound = useCallback(async () => {
+    setError(null);
+    setLoading(true);
     try {
-      const { round, warning: w } = generateSwissRound(state);
-      setWarning(w ?? null);
-      update((prev) => ({ ...prev, rounds: [...prev.rounds, round] }));
+      const data = await createRound();
+      apply({
+        state: data.state,
+        standings: data.standings,
+        warning: data.warning ?? null,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Falha ao gerar rodada.");
+    } finally {
+      setLoading(false);
     }
-  }, [canPair, isOrganizer, state, update]);
+  }, [apply]);
 
   const setPodResult = useCallback(
-    (roundId: string, podId: string, result: PodResult | null) => {
-      if (!canReport) {
-        setError(
-          isOrganizer
-            ? "Resultados só com o evento em lock."
-            : "Só a organizadora reporta resultados.",
-        );
-        return;
+    async (_roundId: string, podId: string, result: PodResult | null) => {
+      setError(null);
+      setLoading(true);
+      try {
+        const data = await putPodResult(podId, result);
+        apply({ state: data.state, standings: data.standings });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Falha ao salvar resultado.");
+      } finally {
+        setLoading(false);
       }
-      update((prev) => ({
-        ...prev,
-        rounds: prev.rounds.map((r) => {
-          if (r.id !== roundId) return r;
-          return {
-            ...r,
-            pods: r.pods.map((p) => {
-              if (p.id !== podId) return p;
-              if (result === null) {
-                const { result: _drop, ...rest } = p;
-                void _drop;
-                return rest;
-              }
-              return { ...p, result };
-            }),
-          };
-        }),
-      }));
     },
-    [canReport, isOrganizer, update],
+    [apply],
   );
 
-  const deleteLastRound = useCallback(() => {
-    if (!isOrganizer || isClosed) {
-      setError("Só a organizadora remove rodadas (e o evento não pode estar encerrado).");
-      return;
-    }
-    update((prev) => ({
-      ...prev,
-      rounds: prev.rounds.slice(0, -1),
-    }));
-    setWarning(null);
-  }, [isClosed, isOrganizer, update]);
-
-  const resetAll = useCallback(() => {
-    if (!isOrganizer) {
-      setError("Só a organizadora pode zerar o torneio.");
-      return;
-    }
-    clearTournament();
-    saveSelfPlayerId(null);
-    setSelfPlayerId(null);
-    setState(emptyTournament());
+  const deleteLastRoundFn = useCallback(async () => {
     setError(null);
-    setWarning(null);
-  }, [isOrganizer]);
+    setLoading(true);
+    try {
+      const data = await deleteLastRound();
+      apply({ state: data.state, standings: data.standings, warning: null });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Falha ao remover rodada.");
+    } finally {
+      setLoading(false);
+    }
+  }, [apply]);
+
+  const resetAll = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const data = await resetEvent();
+      clearPlayerSession();
+      setSelfPlayerId(null);
+      apply({
+        state: data.state,
+        standings: data.standings,
+        selfPlayerId: null,
+        warning: null,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Falha ao zerar.");
+    } finally {
+      setLoading(false);
+    }
+  }, [apply]);
 
   return {
     state,
     hydrated,
+    loading,
     error,
     warning,
     standings,
@@ -324,9 +307,9 @@ export function useTournament() {
     inscriptionsOpen,
     isLocked,
     isClosed,
-    canManageEvent,
-    canPair,
-    canReport,
+    canManageEvent: isOrganizer,
+    canPair: isOrganizer && isLocked,
+    canReport: isOrganizer && isLocked,
     canAddPlayer,
     canEditPlayer,
     canRemovePlayer,
@@ -336,11 +319,12 @@ export function useTournament() {
     claimSelf,
     addPlayer,
     updatePlayer,
-    removePlayer,
+    removePlayer: removePlayerFn,
     generateRound,
     setPodResult,
-    deleteLastRound,
+    deleteLastRound: deleteLastRoundFn,
     resetAll,
+    refresh,
     clearError: () => setError(null),
   };
 }

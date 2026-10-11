@@ -55,10 +55,6 @@ export type StandingRow = {
   gamesPlayed: number;
 };
 
-export const STORAGE_KEY = "torneio-commander-500";
-export const SELF_PLAYER_KEY = "torneio-commander-500-self";
-export const ORG_SESSION_KEY = "torneio-commander-500-org";
-
 export const POINTS = {
   win: 3,
   draw: 1,

@@ -18,10 +18,9 @@ type Props = {
   canAddPlayer: boolean;
   canEditPlayer: (id: string) => boolean;
   canRemovePlayer: (id: string) => boolean;
-  onAdd: (input: PlayerInput) => boolean;
-  onUpdate: (id: string, input: PlayerInput) => boolean;
-  onRemove: (id: string) => boolean;
-  onClaimSelf: (id: string) => void;
+  onAdd: (input: PlayerInput) => boolean | Promise<boolean>;
+  onUpdate: (id: string, input: PlayerInput) => boolean | Promise<boolean>;
+  onRemove: (id: string) => boolean | Promise<boolean>;
 };
 
 const emptyForm = { name: "", commander: "", deckUrl: "" };
@@ -37,15 +36,14 @@ export function PlayersPanel({
   onAdd,
   onUpdate,
   onRemove,
-  onClaimSelf,
 }: Props) {
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState(emptyForm);
 
-  function submitAdd(e: React.FormEvent) {
+  async function submitAdd(e: React.FormEvent) {
     e.preventDefault();
-    if (onAdd(form)) setForm(emptyForm);
+    if (await onAdd(form)) setForm(emptyForm);
   }
 
   function startEdit(p: Player) {
@@ -57,8 +55,8 @@ export function PlayersPanel({
     });
   }
 
-  function saveEdit() {
-    if (editingId && onUpdate(editingId, editForm)) {
+  async function saveEdit() {
+    if (editingId && (await onUpdate(editingId, editForm))) {
       setEditingId(null);
       setEditForm(emptyForm);
     }
@@ -215,20 +213,6 @@ export function PlayersPanel({
                           {p.deckUrl && <DeckLink href={p.deckUrl} />}
                         </div>
                       )}
-                      {!mine &&
-                        !isOrganizer &&
-                        eventStatus === "inscricoes_abertas" &&
-                        !selfPlayerId && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="link"
-                            className="h-auto px-0 text-xs"
-                            onClick={() => onClaimSelf(p.id)}
-                          >
-                            Esta é a minha ficha
-                          </Button>
-                        )}
                     </div>
                     {editable && (
                       <Button

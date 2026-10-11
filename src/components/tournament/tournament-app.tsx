@@ -30,8 +30,8 @@ export function TournamentApp() {
           Torneio Commander 500
         </h1>
         <p className="max-w-xl text-sm text-muted-foreground">
-          Classificação do grupo — pontos e mesas no celular. Dados ficam só
-          neste aparelho (localStorage).
+          Site compartilhado do grupo — inscrição, mesas e classificação no
+          mesmo evento (SQLite no servidor). Bracket 2 · Bo1.
         </p>
       </header>
 
@@ -100,14 +100,14 @@ export function TournamentApp() {
             onAdd={t.addPlayer}
             onUpdate={t.updatePlayer}
             onRemove={t.removePlayer}
-            onClaimSelf={t.claimSelf}
           />
         </TabsContent>
       </Tabs>
 
       <footer className="mt-auto flex flex-col gap-3 border-t border-[var(--felt-line)] pt-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">
-          Pairing v1 + desempate por PO — detalhes no README.
+          Dados compartilhados · pairing v1 + PO — veja o README.
+          {t.loading ? " · sincronizando…" : ""}
         </p>
         {t.isOrganizer && (
           <Button
@@ -118,9 +118,9 @@ export function TournamentApp() {
             onClick={() => {
               if (
                 typeof window !== "undefined" &&
-                window.confirm("Zerar todo o torneio neste aparelho?")
+                window.confirm("Zerar o torneio compartilhado para todo o mundo?")
               ) {
-                t.resetAll();
+                void t.resetAll();
               }
             }}
           >

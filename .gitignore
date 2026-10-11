@@ -24,6 +24,10 @@
 .DS_Store
 *.pem
 
+# local SQLite (shared tournament DB)
+/data/*.sqlite
+/data/*.sqlite-*
+
 # debug
 npm-debug.log*
 yarn-debug.log*

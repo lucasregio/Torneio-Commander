@@ -13,9 +13,9 @@ import {
 type Props = {
   eventStatus: EventStatus;
   isOrganizer: boolean;
-  onEnter: (pin: string) => boolean;
-  onLeave: () => void;
-  onSetStatus: (status: EventStatus) => boolean;
+  onEnter: (pin: string) => Promise<boolean>;
+  onLeave: () => void | Promise<void>;
+  onSetStatus: (status: EventStatus) => Promise<boolean>;
 };
 
 export function OrgBar({
@@ -27,6 +27,7 @@ export function OrgBar({
 }: Props) {
   const [pin, setPin] = useState("");
   const [showPin, setShowPin] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   return (
     <div className="space-y-3 rounded-lg border bg-card/50 p-3 sm:p-4">
@@ -38,23 +39,29 @@ export function OrgBar({
         {isOrganizer ? (
           <Badge variant="outline">modo organizador</Badge>
         ) : null}
+        <Badge variant="outline">site compartilhado</Badge>
       </div>
 
       {!isOrganizer ? (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            Jogadores: com inscrições abertas, crie/edite a própria ficha. Com
-            lock, só leitura. Organizadora usa PIN (MVP, sem login).
+            Todos os celulares veem o mesmo torneio (SQLite no servidor). Com
+            inscrições abertas, crie sua ficha; com lock, só leitura.
+            Organizadora usa PIN.
           </p>
           {showPin ? (
             <form
               className="flex flex-col gap-2 sm:flex-row sm:items-end"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (onEnter(pin)) {
-                  setPin("");
-                  setShowPin(false);
-                }
+                setBusy(true);
+                void onEnter(pin).then((ok) => {
+                  setBusy(false);
+                  if (ok) {
+                    setPin("");
+                    setShowPin(false);
+                  }
+                });
               }}
             >
               <div className="space-y-1.5">
@@ -71,7 +78,7 @@ export function OrgBar({
                 />
               </div>
               <div className="flex gap-2">
-                <Button type="submit" size="sm">
+                <Button type="submit" size="sm" disabled={busy}>
                   Entrar
                 </Button>
                 <Button
@@ -98,15 +105,23 @@ export function OrgBar({
       ) : (
         <div className="flex flex-col gap-2">
           <p className="text-xs text-muted-foreground">
-            Você está no modo organizador nesta sessão. Trave as inscrições
-            antes de gerar mesas.
+            Modo organizador nesta sessão. Trave as inscrições antes de gerar
+            mesas — o grupo vê as mudanças em todos os aparelhos.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               size="sm"
-              variant={eventStatus === "inscricoes_abertas" ? "default" : "outline"}
-              onClick={() => onSetStatus("inscricoes_abertas")}
+              variant={
+                eventStatus === "inscricoes_abertas" ? "default" : "outline"
+              }
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                void onSetStatus("inscricoes_abertas").finally(() =>
+                  setBusy(false),
+                );
+              }}
             >
               Abrir inscrições
             </Button>
@@ -114,7 +129,11 @@ export function OrgBar({
               type="button"
               size="sm"
               variant={eventStatus === "lock" ? "default" : "outline"}
-              onClick={() => onSetStatus("lock")}
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                void onSetStatus("lock").finally(() => setBusy(false));
+              }}
             >
               Trancar (lock)
             </Button>
@@ -122,11 +141,20 @@ export function OrgBar({
               type="button"
               size="sm"
               variant={eventStatus === "encerrado" ? "default" : "outline"}
-              onClick={() => onSetStatus("encerrado")}
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                void onSetStatus("encerrado").finally(() => setBusy(false));
+              }}
             >
               Encerrar
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={onLeave}>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => void onLeave()}
+            >
               Sair do modo org
             </Button>
           </div>
