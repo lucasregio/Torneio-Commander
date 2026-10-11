@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { StandingRow } from "@/lib/tournament/types";
+import { DeckLink } from "./deck-link";
 
 type Props = {
   standings: StandingRow[];
@@ -41,6 +42,7 @@ export function StandingsPanel({ standings, playerCount }: Props) {
             <TableRow>
               <TableHead className="w-12">#</TableHead>
               <TableHead>Jogador</TableHead>
+              <TableHead>Comandante</TableHead>
               <TableHead className="text-right">Pts</TableHead>
               <TableHead className="text-right">V</TableHead>
               <TableHead className="text-right">E</TableHead>
@@ -58,12 +60,18 @@ export function StandingsPanel({ standings, playerCount }: Props) {
                   {idx + 1}
                 </TableCell>
                 <TableCell>
-                  <span className="font-medium">{row.name}</span>
-                  {idx === 0 && row.points > 0 && (
-                    <Badge className="ml-2" variant="secondary">
-                      líder
-                    </Badge>
-                  )}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-medium">{row.name}</span>
+                    {idx === 0 && row.points > 0 && (
+                      <Badge variant="secondary">líder</Badge>
+                    )}
+                    {row.deckUrl && (
+                      <DeckLink href={row.deckUrl} className="inline-flex items-center gap-1 text-xs text-[var(--felt-accent)] underline-offset-2 hover:underline" />
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="max-w-[10rem] truncate text-muted-foreground">
+                  {row.commander ?? "—"}
                 </TableCell>
                 <TableCell className="text-right font-semibold tabular-nums">
                   {row.points}

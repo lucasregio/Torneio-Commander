@@ -81,7 +81,7 @@ export function TournamentApp() {
             players={t.state.players}
             roundsStarted={t.state.rounds.length > 0}
             onAdd={t.addPlayer}
-            onRename={t.renamePlayer}
+            onUpdate={t.updatePlayer}
             onRemove={t.removePlayer}
           />
         </TabsContent>

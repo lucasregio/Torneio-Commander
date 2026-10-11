@@ -16,6 +16,8 @@ function ensureRow(
     row = {
       playerId: player.id,
       name: player.name,
+      commander: player.commander,
+      deckUrl: player.deckUrl,
       points: 0,
       wins: 0,
       draws: 0,
@@ -25,6 +27,10 @@ function ensureRow(
       gamesPlayed: 0,
     };
     map.set(player.id, row);
+  } else {
+    row.name = player.name;
+    row.commander = player.commander;
+    row.deckUrl = player.deckUrl;
   }
   return row;
 }

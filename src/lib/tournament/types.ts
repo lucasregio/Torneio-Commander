@@ -1,6 +1,16 @@
 export type Player = {
   id: string;
   name: string;
+  /** Comandante do deck (opcional). */
+  commander?: string;
+  /** Link da lista (Moxfield/Archidekt/etc., opcional). */
+  deckUrl?: string;
+};
+
+export type PlayerInput = {
+  name: string;
+  commander?: string;
+  deckUrl?: string;
 };
 
 export type PodResult =
@@ -30,6 +40,8 @@ export type TournamentState = {
 export type StandingRow = {
   playerId: string;
   name: string;
+  commander?: string;
+  deckUrl?: string;
   points: number;
   wins: number;
   draws: number;

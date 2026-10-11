@@ -1,3 +1,4 @@
+import { migratePlayer } from "./player-fields";
 import { emptyTournament, STORAGE_KEY, type TournamentState } from "./types";
 
 export function loadTournament(): TournamentState {
@@ -11,7 +12,12 @@ export function loadTournament(): TournamentState {
     }
     return {
       version: 1,
-      players: parsed.players,
+      players: parsed.players
+        .filter(
+          (p): p is { id: string; name: string } =>
+            Boolean(p && typeof p.id === "string" && typeof p.name === "string"),
+        )
+        .map(migratePlayer),
       rounds: Array.isArray(parsed.rounds) ? parsed.rounds : [],
     };
   } catch {

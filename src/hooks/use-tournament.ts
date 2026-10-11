@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { generateSwissRound } from "@/lib/tournament/pairing";
+import { normalizePlayerFields } from "@/lib/tournament/player-fields";
 import {
   computeStandings,
   hasIncompleteResults,
@@ -15,6 +16,7 @@ import {
 import {
   emptyTournament,
   newId,
+  type PlayerInput,
   type PodResult,
   type TournamentState,
 } from "@/lib/tournament/types";
@@ -43,15 +45,17 @@ export function useTournament() {
   }, []);
 
   const addPlayer = useCallback(
-    (name: string) => {
-      const trimmed = name.trim();
-      if (!trimmed) {
-        setError("Digite um nome.");
+    (input: PlayerInput) => {
+      const normalized = normalizePlayerFields(input);
+      if (!normalized.ok) {
+        setError(normalized.error);
         return false;
       }
       if (
         state.players.some(
-          (p) => p.name.toLocaleLowerCase("pt-BR") === trimmed.toLocaleLowerCase("pt-BR"),
+          (p) =>
+            p.name.toLocaleLowerCase("pt-BR") ===
+            normalized.fields.name.toLocaleLowerCase("pt-BR"),
         )
       ) {
         setError("Já existe um jogador com esse nome.");
@@ -59,29 +63,40 @@ export function useTournament() {
       }
       update((prev) => ({
         ...prev,
-        players: [...prev.players, { id: newId(), name: trimmed }],
+        players: [...prev.players, { id: newId(), ...normalized.fields }],
       }));
       return true;
     },
     [state.players, update],
   );
 
-  const renamePlayer = useCallback(
-    (id: string, name: string) => {
-      const trimmed = name.trim();
-      if (!trimmed) {
-        setError("Nome não pode ficar vazio.");
+  const updatePlayer = useCallback(
+    (id: string, input: PlayerInput) => {
+      const normalized = normalizePlayerFields(input);
+      if (!normalized.ok) {
+        setError(normalized.error);
+        return false;
+      }
+      if (
+        state.players.some(
+          (p) =>
+            p.id !== id &&
+            p.name.toLocaleLowerCase("pt-BR") ===
+              normalized.fields.name.toLocaleLowerCase("pt-BR"),
+        )
+      ) {
+        setError("Já existe um jogador com esse nome.");
         return false;
       }
       update((prev) => ({
         ...prev,
         players: prev.players.map((p) =>
-          p.id === id ? { ...p, name: trimmed } : p,
+          p.id === id ? { id, ...normalized.fields } : p,
         ),
       }));
       return true;
     },
-    [update],
+    [state.players, update],
   );
 
   const removePlayer = useCallback(
@@ -165,7 +180,7 @@ export function useTournament() {
     warning,
     standings,
     addPlayer,
-    renamePlayer,
+    updatePlayer,
     removePlayer,
     generateRound,
     setPodResult,
