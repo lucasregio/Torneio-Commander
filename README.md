@@ -11,9 +11,21 @@ npm run dev
 
 Abre em [http://127.0.0.1:43127](http://127.0.0.1:43127).
 
+PIN da organizadora (MVP): padrão `500`, ou `NEXT_PUBLIC_ORG_PIN` no `.env.local`.
+
+## Estados do evento
+
+| Estado | Quem faz o quê |
+| --- | --- |
+| `inscricoes_abertas` | Cada aparelho cria/edita **uma** ficha (nome, comandante, link) |
+| `lock` | Torneio rolando: grupo só lê classificação/mesas/decks; organizadora faz pairing e resultados |
+| `encerrado` | Encerrado (leitura); organizadora pode reabrir/ajustar |
+
+**Modo organizador:** botão + PIN (sessão no `sessionStorage`). Sem OAuth.
+
 ## O que faz (MVP)
 
-1. **Jogadores** — adicionar, editar e remover nomes (remoção só antes da 1ª rodada)
+1. **Jogadores** — ficha com nome, comandante e link do deck
 2. **Rodadas** — gerar mesas suíças (pods de 4; de 3 se precisar; bye se sobrar 1)
 3. **Resultados** — vitória / empate da mesa / bye
 4. **Classificação** — pontos e desempate

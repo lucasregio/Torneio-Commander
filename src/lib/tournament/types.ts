@@ -1,3 +1,5 @@
+export type EventStatus = "inscricoes_abertas" | "lock" | "encerrado";
+
 export type Player = {
   id: string;
   name: string;
@@ -33,6 +35,7 @@ export type Round = {
 
 export type TournamentState = {
   version: 1;
+  eventStatus: EventStatus;
   players: Player[];
   rounds: Round[];
 };
@@ -53,6 +56,8 @@ export type StandingRow = {
 };
 
 export const STORAGE_KEY = "torneio-commander-500";
+export const SELF_PLAYER_KEY = "torneio-commander-500-self";
+export const ORG_SESSION_KEY = "torneio-commander-500-org";
 
 export const POINTS = {
   win: 3,
@@ -61,8 +66,19 @@ export const POINTS = {
   bye: 3,
 } as const;
 
+export const EVENT_STATUS_LABEL: Record<EventStatus, string> = {
+  inscricoes_abertas: "Inscrições abertas",
+  lock: "Lock — torneio rolando",
+  encerrado: "Encerrado",
+};
+
 export function emptyTournament(): TournamentState {
-  return { version: 1, players: [], rounds: [] };
+  return {
+    version: 1,
+    eventStatus: "inscricoes_abertas",
+    players: [],
+    rounds: [],
+  };
 }
 
 export function newId(): string {
@@ -70,4 +86,12 @@ export function newId(): string {
     return crypto.randomUUID();
   }
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function isEventStatus(value: unknown): value is EventStatus {
+  return (
+    value === "inscricoes_abertas" ||
+    value === "lock" ||
+    value === "encerrado"
+  );
 }

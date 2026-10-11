@@ -1,17 +1,25 @@
 import { migratePlayer } from "./player-fields";
-import { emptyTournament, STORAGE_KEY, type TournamentState } from "./types";
+import {
+  emptyTournament,
+  isEventStatus,
+  STORAGE_KEY,
+  type TournamentState,
+} from "./types";
 
 export function loadTournament(): TournamentState {
   if (typeof window === "undefined") return emptyTournament();
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return emptyTournament();
-    const parsed = JSON.parse(raw) as TournamentState;
+    const parsed = JSON.parse(raw) as Partial<TournamentState>;
     if (parsed?.version !== 1 || !Array.isArray(parsed.players)) {
       return emptyTournament();
     }
     return {
       version: 1,
+      eventStatus: isEventStatus(parsed.eventStatus)
+        ? parsed.eventStatus
+        : "inscricoes_abertas",
       players: parsed.players
         .filter(
           (p): p is { id: string; name: string } =>

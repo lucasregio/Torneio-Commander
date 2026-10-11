@@ -10,6 +10,9 @@ type Props = {
   players: Player[];
   rounds: Round[];
   warning: string | null;
+  canPair: boolean;
+  canReport: boolean;
+  isOrganizer: boolean;
   onGenerate: () => void;
   onSetResult: (roundId: string, podId: string, result: PodResult | null) => void;
   onDeleteLast: () => void;
@@ -19,6 +22,9 @@ export function RoundsPanel({
   players,
   rounds,
   warning,
+  canPair,
+  canReport,
+  isOrganizer,
   onGenerate,
   onSetResult,
   onDeleteLast,
@@ -31,25 +37,55 @@ export function RoundsPanel({
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Rodadas</h2>
           <p className="text-sm text-muted-foreground">
-            Gere mesas suíças e reporte vitória, empate (mesa inteira) ou bye.
+            {canReport
+              ? "Gere mesas suíças e reporte vitória, empate (mesa inteira) ou bye."
+              : "Mesas e resultados — leitura para o grupo; só a organizadora altera no lock."}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" onClick={onGenerate} disabled={players.length < 3}>
-            Gerar rodada
-          </Button>
-          {rounds.length > 0 && (
-            <Button type="button" variant="outline" onClick={onDeleteLast}>
-              Remover última
+        {isOrganizer && (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              onClick={onGenerate}
+              disabled={!canPair || players.length < 3}
+            >
+              Gerar rodada
             </Button>
-          )}
-        </div>
+            {rounds.length > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onDeleteLast}
+                disabled={!isOrganizer}
+              >
+                Remover última
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {warning && (
         <Alert>
           <AlertTitle>Pairing</AlertTitle>
           <AlertDescription>{warning}</AlertDescription>
+        </Alert>
+      )}
+
+      {!isOrganizer && (
+        <Alert>
+          <AlertDescription>
+            Você está vendo as mesas. Pairing e reporte de resultado são da
+            organizadora (modo organizador + lock).
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {isOrganizer && !canPair && (
+        <Alert>
+          <AlertDescription>
+            Trave as inscrições (lock) para gerar mesas e reportar resultados.
+          </AlertDescription>
         </Alert>
       )}
 
@@ -61,11 +97,11 @@ export function RoundsPanel({
         </Alert>
       )}
 
-      {rounds.length === 0 && players.length >= 3 && (
+      {rounds.length === 0 && players.length >= 3 && canPair && (
         <Alert>
           <AlertDescription>
             Nenhuma rodada ainda. Clique em “Gerar rodada” para o pairing suíço
-            v1 (evita rematch quando é fácil; veja README para limitações).
+            v1.
           </AlertDescription>
         </Alert>
       )}
@@ -91,6 +127,7 @@ export function RoundsPanel({
                   }
                   pod={pod}
                   names={byId}
+                  canReport={canReport}
                   onSetResult={(result) =>
                     onSetResult(round.id, pod.id, result)
                   }
@@ -109,11 +146,13 @@ function PodCard({
   label,
   pod,
   names,
+  canReport,
   onSetResult,
 }: {
   label: string;
   pod: Pod;
   names: Map<string, string>;
+  canReport: boolean;
   onSetResult: (result: PodResult | null) => void;
 }) {
   const isBye = pod.playerIds.length === 1 || pod.result?.kind === "bye";
@@ -149,7 +188,7 @@ function PodCard({
         <p className="text-xs text-muted-foreground">
           Bye automático: +3 pontos (conta como vitória).
         </p>
-      ) : (
+      ) : canReport ? (
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap gap-2">
             {pod.playerIds.map((id) => (
@@ -189,6 +228,12 @@ function PodCard({
             )}
           </div>
         </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          {pod.result
+            ? "Resultado registrado."
+            : "Aguardando resultado da organizadora."}
+        </p>
       )}
     </div>
   );

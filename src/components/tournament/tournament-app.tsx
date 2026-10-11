@@ -4,6 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTournament } from "@/hooks/use-tournament";
+import { OrgBar } from "./org-bar";
 import { PlayersPanel } from "./players-panel";
 import { RoundsPanel } from "./rounds-panel";
 import { StandingsPanel } from "./standings-panel";
@@ -33,6 +34,14 @@ export function TournamentApp() {
           neste aparelho (localStorage).
         </p>
       </header>
+
+      <OrgBar
+        eventStatus={t.eventStatus}
+        isOrganizer={t.isOrganizer}
+        onEnter={t.enterOrganizer}
+        onLeave={t.leaveOrganizer}
+        onSetStatus={t.setEventStatus}
+      />
 
       {t.error && (
         <Alert variant="destructive">
@@ -70,6 +79,9 @@ export function TournamentApp() {
             players={t.state.players}
             rounds={t.state.rounds}
             warning={t.warning}
+            canPair={t.canPair}
+            canReport={t.canReport}
+            isOrganizer={t.isOrganizer}
             onGenerate={t.generateRound}
             onSetResult={t.setPodResult}
             onDeleteLast={t.deleteLastRound}
@@ -79,10 +91,16 @@ export function TournamentApp() {
         <TabsContent value="jogadores">
           <PlayersPanel
             players={t.state.players}
-            roundsStarted={t.state.rounds.length > 0}
+            eventStatus={t.eventStatus}
+            isOrganizer={t.isOrganizer}
+            selfPlayerId={t.selfPlayerId}
+            canAddPlayer={t.canAddPlayer}
+            canEditPlayer={t.canEditPlayer}
+            canRemovePlayer={t.canRemovePlayer}
             onAdd={t.addPlayer}
             onUpdate={t.updatePlayer}
             onRemove={t.removePlayer}
+            onClaimSelf={t.claimSelf}
           />
         </TabsContent>
       </Tabs>
@@ -91,22 +109,24 @@ export function TournamentApp() {
         <p className="text-xs text-muted-foreground">
           Pairing v1 + desempate por PO — detalhes no README.
         </p>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-destructive"
-          onClick={() => {
-            if (
-              typeof window !== "undefined" &&
-              window.confirm("Zerar todo o torneio neste aparelho?")
-            ) {
-              t.resetAll();
-            }
-          }}
-        >
-          Zerar torneio
-        </Button>
+        {t.isOrganizer && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-destructive"
+            onClick={() => {
+              if (
+                typeof window !== "undefined" &&
+                window.confirm("Zerar todo o torneio neste aparelho?")
+              ) {
+                t.resetAll();
+              }
+            }}
+          >
+            Zerar torneio
+          </Button>
+        )}
       </footer>
     </div>
   );
