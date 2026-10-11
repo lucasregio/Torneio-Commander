@@ -316,7 +316,6 @@ export function useTournament() {
     enterOrganizer,
     leaveOrganizer,
     setEventStatus,
-    claimSelf,
     addPlayer,
     updatePlayer,
     removePlayer: removePlayerFn,
