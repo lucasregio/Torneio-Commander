@@ -6,6 +6,9 @@ import { EVENT_SLUG } from "@/lib/tournament/constants";
 const globalForDb = globalThis as unknown as { __torneioDb?: Database.Database };
 
 function dbPath() {
+  if (process.env.TORNEIO_DB_PATH?.trim()) {
+    return path.resolve(process.env.TORNEIO_DB_PATH.trim());
+  }
   return path.join(process.cwd(), "data", "torneio.sqlite");
 }
 

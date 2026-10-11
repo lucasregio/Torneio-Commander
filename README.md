@@ -56,3 +56,37 @@ Pods de 4 (3 se precisar). Desempate: pontos → PO (pontos dos oponentes) → m
 ### Pairing (v1)
 
 Ordena pelo standing, monta mesas, bye com menos byes, micro-swap para reduzir rematch. Não é pairing ótimo — rematches podem ocorrer em campo pequeno.
+
+## Deploy (hospedagem)
+
+O app usa **SQLite em arquivo** (`better-sqlite3` + `data/torneio.sqlite`). Isso precisa de **filesystem persistente** e runtime **Node** (não Edge).
+
+### Não use Vercel “puro” para este MVP
+
+No plano serverless da Vercel o disco é efêmero: o `.sqlite` some entre deploys/instâncias e não há volume local estável. Dá para adaptar depois (Turso/libSQL, Postgres), mas **não** é o caminho barato agora.
+
+### Opções baratas (recomendadas)
+
+1. **Fly.io** — máquina pequena + volume montado em `/data`  
+   - Set `ORG_PIN` como secret  
+   - Aponte o DB para o volume (ex. env `TORNEIO_DB_PATH=/data/torneio.sqlite` se configurado no código; hoje o path padrão é `data/torneio.sqlite` relativo ao cwd — rode o processo com cwd no volume ou ajuste o path)
+2. **Railway** — serviço Node + volume, mesmo cuidado de path persistente
+3. **VPS simples** (qualquer $) — `npm run build && npm run start` atrás de Caddy/nginx; backup do arquivo SQLite
+
+### Checklist pós–Create repo (GitHub)
+
+1. Criar o repositório real no GitHub (sair do `agent_temp` / Origin tmp)
+2. Apontar `origin` para o repo GitHub e dar push da branch `cursor/torneio-commander-500-5f40`
+3. Abrir PR → `main`
+4. Provisionar host com volume (Fly/Railway/VPS)
+5. Env: `ORG_PIN=...` (não usar o default `500` em produção)
+6. Health: abrir `/` e `GET /api/event`
+
+### Env de produção
+
+```bash
+ORG_PIN=troque-este-pin
+NODE_ENV=production
+```
+
+Build: `npm run build` · Start: `npm run start` (porta `43127` no script local; em host use `PORT` do provedor se necessário — ajuste o script `start` para `next start -p $PORT` no deploy).
