@@ -4,18 +4,19 @@
 
 SQLite em arquivo precisa de disco persistente. Serverless Vercel = filesystem efêmero → dados somem. Alternativa futura: Turso/libSQL ou Postgres. Agora: **Fly.io / Railway / VPS** com volume.
 
-## Fly.io (esboço)
+## Fly.io
+
+O repo já tem `Dockerfile`, `.dockerignore` e `fly.toml` (região `gru`, porta `43127`, volume em `/data`, máquina sempre ligada). O app lê `TORNEIO_DB_PATH`.
 
 ```bash
-# no repo GitHub real
-fly launch --no-deploy   # app Node, sem Postgres
-fly volumes create torneio_data --size 1
-# no fly.toml: montar volume em /data
-fly secrets set ORG_PIN='pin-forte' TORNEIO_DB_PATH=/data/torneio.sqlite
+fly auth login
+fly apps create torneio-commander-500   # troque o nome no fly.toml se estiver ocupado
+fly volumes create torneio_data --size 1 --region gru
+fly secrets set ORG_PIN='pin-forte'
 fly deploy
 ```
 
-Ajuste `Dockerfile` ou use o buildpack Node (`npm run build` / `npm run start`). Garanta `better-sqlite3` compilado na imagem Linux.
+`ORG_PIN` fica só no secret. A imagem compila `better-sqlite3` no Linux.
 
 ## Railway
 
